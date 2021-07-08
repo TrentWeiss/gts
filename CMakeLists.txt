@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.1)
 add_executable(predicates_init src/predicates_init.c)
 
 execute_process(
-  COMMAND predicates_init.exe
+  COMMAND predicates_init
   OUTPUT_FILE predicates_init.h
   OUTPUT_VARIABLE OUTVAR)
 
@@ -11,6 +11,31 @@ MESSAGE("${OUTVAR}")
 
 set(kit gts)
 project(${kit})
+
+if (NOT WIN32)
+  set(CPP_HAS_WARNING 1)
+  set(HAVE_DLFCN_H 1)
+  set(HAVE_FLOATINGPOINT_H 1)
+  set(HAVE_FPU_CONTROL_H 1)
+  set(HAVE_GETOPT_H 1)
+  set(HAVE_GETOPT_LONG 1)
+  set(HAVE_INTTYPES_H 1)
+  set(HAVE_MEMORY_H 1)
+  set(HAVE_STDINT_H 1)
+  set(HAVE_STDLIB_H 1)
+  set(HAVE_STRINGS_H 1)
+  set(HAVE_STRING_H 1)
+  set(HAVE_SYS_STAT_H 1)
+  set(HAVE_SYS_TYPES_H 1)
+  set(HAVE_UNISTD_H 1)
+  set(PACKAGE_BUGREPORT 0)
+  set(PACKAGE_NAME "gts")
+  set(PACKAGE_STRING "0.7.6")
+  set(PACKAGE_TARNAME "gts")
+  set(PACKAGE_URL "")
+  set(PACKAGE_VERSION "0.7.6")
+  set(STDC_HEADERS)
+endif()
 
 set(srcs
   src/bbtree.c
@@ -49,35 +74,29 @@ set(srcs
   src/vopt.c
   )
 
+if (WIN32)
 configure_file(src/config.h.win32 config.h)
+else()
+configure_file(config.h.in config.h @ONLY)
+endif()
 
 SET(CMAKE_INCLUDE_CURRENT_DIR ON)
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
-find_library(glib_LIBRARY NAMES glib libglib glib-2.0 libglib-2.0
-             HINTS ${glib_BINARY_DIR})
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLIB2 glib-2.0 IMPORTED_TARGET)
 
-get_filename_component(glib_LIBRARY_DIR ${glib_LIBRARY} DIRECTORY)
-get_filename_component(glib_LIBRARY_NAME ${glib_LIBRARY} NAME)
-string(REGEX REPLACE "\\.[^.]*$" "" glib_LIBRARY_NAME ${glib_LIBRARY_NAME})
+include_directories(${GLIB2_INCLUDE_DIRS})
 
-find_path(glib_H NAMES glib.h
-          HINTS ${glib_LIBRARY_DIR}/../include)
-get_filename_component(glib_INCLUDE_DIR ${glib_H} DIRECTORY)
-
-set(glib_CONFIG_H)
-find_path(glib_CONFIG_H NAMES glibconfig.h
-          HINTS ${glib_LIBRARY_DIR}/${glib_LIBRARY_NAME}/include)
-
-get_filename_component(glibconfig_INCLUDE_DIR ${glib_CONFIG_H} DIRECTORY)
-include_directories(${glib_INCLUDE_DIR} ${glib_CONFIG_H})
-
+if (NOT WIN32 AND BUILD_SHARED_LIBS)
 add_definitions(/DGTS_COMPILATION)
+endif()
 
 add_library(${kit} SHARED ${srcs})
-target_link_libraries(${kit} ${glib_LIBRARY})
+target_include_directories(${kit} PUBLIC ${GLIB2_INCLUDE_DIRS})
+target_link_libraries(${kit} PkgConfig::GLIB2)
 
 if(MSVC)
   SET_TARGET_PROPERTIES(${kit} PROPERTIES LINK_FLAGS "/DEF:\"${CMAKE_CURRENT_SOURCE_DIR}/src/gts.def\"")
@@ -93,3 +112,11 @@ INSTALL(FILES
   src/gtsconfig.h
   DESTINATION include COMPONENT Development
   )
+
+set(prefix ${CMAKE_INSTALL_PREFIX})
+set(exec_prefix ${CMAKE_INSTALL_PREFIX})
+set(libdir ${CMAKE_INSTALL_PREFIX}/lib)
+set(includedir ${CMAKE_INSTALL_PREFIX}/include)
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/gts.pc.in"  "${CMAKE_CURRENT_BINARY_DIR}/gts.pc" @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/gts.pc" DESTINATION lib/pkgconfig)
